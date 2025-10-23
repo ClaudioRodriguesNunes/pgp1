@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("Pgp1.Server")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+a82d34e65e662983a71120f3637e3f8d6fe43fbb")]
 [assembly: System.Reflection.AssemblyProductAttribute("Pgp1.Server")]
 [assembly: System.Reflection.AssemblyTitleAttribute("Pgp1.Server")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
