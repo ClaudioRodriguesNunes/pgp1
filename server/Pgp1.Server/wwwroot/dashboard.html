@@ -1,0 +1,32 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>PGP-1 Dashboard</title>
+  <style>
+    body { font-family: sans-serif; background: #f4f4f4; color: #333; padding: 1rem; }
+    pre { background: white; padding: 1rem; border-radius: 8px; }
+    .erro { color: red; }
+  </style>
+  <script>
+    async function carregar() {
+      try {
+        const resposta = await fetch('/events/2/summary');
+        if (!resposta.ok) throw new Error('HTTP ' + resposta.status);
+        const data = await resposta.json();
+        document.getElementById('saida').innerText = JSON.stringify(data, null, 2);
+        document.getElementById('status').innerText = '✅ Atualizado em ' + new Date().toLocaleTimeString();
+      } catch (e) {
+        document.getElementById('status').innerHTML = '<span class="erro">Erro ao buscar resumo: ' + e.message + '</span>';
+      }
+    }
+    setInterval(carregar, 5000);
+    window.onload = carregar;
+  </script>
+</head>
+<body>
+  <h2>PGP-1 — Painel de Evacuação</h2>
+  <div id="status">Carregando...</div>
+  <pre id="saida"></pre>
+</body>
+</html>
