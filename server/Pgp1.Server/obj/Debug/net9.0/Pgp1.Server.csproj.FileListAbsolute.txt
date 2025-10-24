@@ -36,3 +36,4 @@ D:\Petrobras\pgp1\server\Pgp1.Server\obj\Debug\net9.0\refint\Pgp1.Server.dll
 D:\Petrobras\pgp1\server\Pgp1.Server\obj\Debug\net9.0\Pgp1.Server.pdb
 D:\Petrobras\pgp1\server\Pgp1.Server\obj\Debug\net9.0\Pgp1.Server.genruntimeconfig.cache
 D:\Petrobras\pgp1\server\Pgp1.Server\obj\Debug\net9.0\ref\Pgp1.Server.dll
+D:\petrobras\pgp1\server\Pgp1.Server\obj\Debug\net9.0\compressed\bcasw91xk2-awqpobfnb0.gz

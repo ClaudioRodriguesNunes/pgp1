@@ -6,8 +6,8 @@
     <uses-feature
         android:name="android.hardware.camera.any"
         android:required="false" />
-
     <application
+        android:usesCleartextTraffic="true"
         android:allowBackup="true"
         android:supportsRtl="true"
         android:theme="@style/Theme.PGP1Resgate">
