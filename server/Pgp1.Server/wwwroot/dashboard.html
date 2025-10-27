@@ -1,32 +1,109 @@
 ﻿<!DOCTYPE html>
-<html>
+<html lang="pt-BR">
 <head>
-  <meta charset="utf-8"/>
-  <title>PGP-1 Dashboard</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PGP-1 — Painel de Evacuação</title>
   <style>
-    body { font-family: sans-serif; background: #f4f4f4; color: #333; padding: 1rem; }
-    pre { background: white; padding: 1rem; border-radius: 8px; }
-    .erro { color: red; }
-  </style>
-  <script>
-    async function carregar() {
-      try {
-        const resposta = await fetch('/events/2/summary');
-        if (!resposta.ok) throw new Error('HTTP ' + resposta.status);
-        const data = await resposta.json();
-        document.getElementById('saida').innerText = JSON.stringify(data, null, 2);
-        document.getElementById('status').innerText = '✅ Atualizado em ' + new Date().toLocaleTimeString();
-      } catch (e) {
-        document.getElementById('status').innerHTML = '<span class="erro">Erro ao buscar resumo: ' + e.message + '</span>';
-      }
+    body {
+      font-family: 'Segoe UI', Tahoma, sans-serif;
+      background-color: #0a192f;
+      color: #e6f1ff;
+      margin: 0;
+      padding: 20px;
     }
-    setInterval(carregar, 5000);
-    window.onload = carregar;
-  </script>
+    h1 {
+      text-align: center;
+      color: #64ffda;
+    }
+    .status {
+      text-align: center;
+      margin-bottom: 15px;
+      font-size: 14px;
+      color: #9fa8b2;
+    }
+    .counter {
+      text-align: center;
+      font-size: 18px;
+      color: #64ffda;
+      margin-bottom: 20px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+      gap: 12px;
+    }
+    .card {
+      background-color: #112240;
+      border: 1px solid #233554;
+      border-radius: 10px;
+      padding: 12px;
+      text-align: center;
+      box-shadow: 0 0 8px rgba(100, 255, 218, 0.2);
+      transition: transform 0.2s ease;
+    }
+    .card:hover {
+      transform: scale(1.04);
+    }
+    .card span {
+      display: block;
+      font-weight: 500;
+      color: #ccd6f6;
+    }
+    .footer {
+      text-align: center;
+      margin-top: 30px;
+      font-size: 12px;
+      color: #778899;
+    }
+  </style>
 </head>
 <body>
-  <h2>PGP-1 — Painel de Evacuação</h2>
-  <div id="status">Carregando...</div>
-  <pre id="saida"></pre>
+  <h1>PGP-1 — Painel de Evacuação</h1>
+  <div class="status" id="status">⏳ Aguardando dados...</div>
+  <div class="counter" id="counter">Nenhum presente ainda</div>
+  <div class="grid" id="grid"></div>
+
+  <div class="footer">
+    Atualiza automaticamente a cada 5 s<br>
+    Desenvolvido para o projeto PGP-1 — Contagem de POB em Emergência
+  </div>
+
+  <script>
+    const eventId = 1; // evento padrão
+    const grid = document.getElementById("grid");
+    const statusEl = document.getElementById("status");
+    const counterEl = document.getElementById("counter");
+
+    async function carregarResumo() {
+      try {
+        const resp = await fetch(`/events/${eventId}/summary?_=${Date.now()}`);
+        if (!resp.ok) throw new Error("Falha ao obter resumo");
+
+        const data = await resp.json();
+        const presentes = data.presentes || [];
+
+        if (presentes.length === 0) {
+          statusEl.textContent = "🚨 Nenhum check-in registrado até o momento.";
+          grid.innerHTML = "";
+          counterEl.textContent = "0 presentes";
+          return;
+        }
+
+        statusEl.textContent = "✅ Dados atualizados com sucesso";
+        counterEl.textContent = `${presentes.length} presentes`;
+        grid.innerHTML = presentes
+          .map(p => `<div class="card"><span>${p}</span></div>`)
+          .join("");
+      } catch (err) {
+        console.error("Erro ao carregar resumo:", err);
+        statusEl.textContent = "⚠️ Erro de conexão com o servidor";
+      }
+    }
+
+    // Atualiza a cada 5 segundos
+    carregarResumo();
+    setInterval(carregarResumo, 5000);
+  </script>
 </body>
 </html>

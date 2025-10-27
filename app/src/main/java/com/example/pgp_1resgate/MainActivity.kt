@@ -21,11 +21,28 @@ import kotlinx.serialization.json.Json
 import java.io.BufferedReader
 import java.io.InputStreamReader
 
+import io.ktor.client.*
+import io.ktor.client.engine.android.*
+import io.ktor.client.request.*
+import io.ktor.client.statement.*
+import io.ktor.client.plugins.contentnegotiation.*
+import io.ktor.http.*
+import io.ktor.serialization.kotlinx.json.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
+import android.util.Log
+import android.widget.Toast
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.graphics.Color
+import io.ktor.client.engine.android.Android
+import io.ktor.client.call.*
+
 // Modelo de dados — segue padrão camelCase
 @Serializable
 data class Tripulante(
     val nome: String,
     @SerialName("nome_guerra") val nomeGuerra: String,
+    val matricula: String,
     val baleeira: String,
     val empresa: String,
     val camarote: String,
@@ -50,6 +67,9 @@ fun TelaPrincipal() {
     var erro by remember { mutableStateOf("") }
     var carregado by remember { mutableStateOf(false) }
 
+    val coroutineScope = rememberCoroutineScope()
+    val context = LocalContext.current
+
     // Carrega os dados do CSV local (simulação offline)
     LaunchedEffect(Unit) {
         try {
@@ -59,14 +79,15 @@ fun TelaPrincipal() {
 
                 val linhas = csvText.lines().filter { it.isNotBlank() }.drop(1)
                 val lista = linhas.map { linha ->
-                    val partes = linha.split(";")
+                    val partes = linha.split(",")
                     Tripulante(
                         nome = partes.getOrNull(0)?.trim() ?: "",
                         nomeGuerra = partes.getOrNull(1)?.trim() ?: "",
-                        baleeira = partes.getOrNull(2)?.trim() ?: "",
-                        empresa = partes.getOrNull(3)?.trim() ?: "",
-                        camarote = partes.getOrNull(4)?.trim() ?: "",
-                        leito = partes.getOrNull(5)?.trim() ?: ""
+                        matricula = partes.getOrNull(2)?.trim() ?: "",
+                        baleeira = partes.getOrNull(3)?.trim() ?: "",
+                        empresa = partes.getOrNull(4)?.trim() ?: "",
+                        camarote = partes.getOrNull(5)?.trim() ?: "",
+                        leito = partes.getOrNull(6)?.trim() ?: ""
                     )
                 }
                 withContext(Dispatchers.Main) {
@@ -75,8 +96,8 @@ fun TelaPrincipal() {
                 }
             }
         } catch (e: Exception) {
-            erro = "Erro ao carregar dados: ${e.message}"
-            println("⚠️ ERRO DETALHADO: ${e}")
+            erro = "Falha ao carregar dados. Verifique se o servidor está rodando em 10.0.2.2:5275"
+
         }
     }
 
@@ -96,7 +117,7 @@ fun TelaPrincipal() {
                 when {
                     erro.isNotEmpty() -> Text("⚠️ $erro", color = MaterialTheme.colorScheme.error)
                     !carregado -> CircularProgressIndicator()
-                    else -> ListaTripulantes(tripulantes)
+                    else -> ListaTripulantes(tripulantes, coroutineScope, context)
                 }
             }
         }
@@ -104,34 +125,102 @@ fun TelaPrincipal() {
 }
 
 @Composable
-fun ListaTripulantes(tripulantes: List<Tripulante>) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(8.dp)
-    ) {
-        Text(
-            text = "Lista de Tripulantes",
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.padding(bottom = 8.dp)
-        )
+fun ListaTripulantes(
+    tripulantes: List<Tripulante>,
+    coroutineScope: CoroutineScope,
+    context: android.content.Context
+) {
+    LazyColumn(modifier = Modifier.fillMaxSize().padding(8.dp)) {
+        items(tripulantes) { t ->
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+            ) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Text("🪪 Matrícula: ${t.matricula}", fontSize = 15.sp)
+                    Text("👤 ${t.nome}", fontSize = 16.sp)
+                    if (t.nomeGuerra.isNotEmpty()) {
+                        Text("📛 Nome de guerra: ${t.nomeGuerra}", fontSize = 14.sp)
+                    }
+                    Text("🏢 Empresa: ${t.empresa}", fontSize = 14.sp)
+                    Text("🛶 Baleeira: ${t.baleeira}", fontSize = 14.sp)
+                    Text("🛏️ Camarote ${t.camarote} | Leito ${t.leito}", fontSize = 14.sp)
 
-        LazyColumn(modifier = Modifier.fillMaxSize()) {
-            items(tripulantes) { t ->
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-                ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
-                        Text("👤 ${t.nome} (${t.nomeGuerra})", fontSize = 16.sp)
-                        Text("🏢 ${t.empresa}")
-                        Text("🛶 Baleeira: ${t.baleeira}")
-                        Text("🛏️ Camarote ${t.camarote} — Leito ${t.leito}")
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Button(
+                        onClick = {
+                            coroutineScope.launch {
+                                val sucesso = registrarPresenca(1, t)
+                                if (sucesso) {
+                                    Toast.makeText(
+                                        context,
+                                        "Presença confirmada para ${t.nome}",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                } else {
+                                    Toast.makeText(
+                                        context,
+                                        "Falha ao registrar ${t.nome}.",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+                    ) {
+                        Text("Confirmar Presença", color = Color.White)
                     }
                 }
             }
         }
+    }
+}
+
+suspend fun registrarPresenca(
+    eventId: Int,
+    tripulante: Tripulante,
+    modo: String = "manual"
+): Boolean {
+    return try {
+        val client = HttpClient(Android) {
+            install(ContentNegotiation) {
+                json(Json { ignoreUnknownKeys = true })
+            }
+        }
+
+        Log.i("Checkin", "Enviando: ${tripulante.nome} → ${tripulante.baleeira}")
+
+        val response = client.post("http://10.0.2.2:5275/events/$eventId/checkins") {
+            contentType(ContentType.Application.Json)
+            setBody(
+               """
+               {
+                 "EventId": $eventId,
+                 "NameOrNick": "${tripulante.nomeGuerra.ifBlank { tripulante.nome }}",
+                 "Baleeira": "${tripulante.baleeira}",
+                 "Mode": "$modo",
+                 "Present": true
+               }
+               """.trimIndent()
+            )
+
+        }
+
+        Log.i("Checkin", "Resposta: ${response.status}")
+
+        if (response.status == HttpStatusCode.OK) {
+            println("✅ Presença registrada para ${tripulante.nomeGuerra}")
+            true
+        } else {
+            println("❌ Falha: ${response.status}")
+            false
+        }
+
+    } catch (e: Exception) {
+        Log.e("Checkin", "Erro ao enviar presença", e)
+        false
     }
 }
