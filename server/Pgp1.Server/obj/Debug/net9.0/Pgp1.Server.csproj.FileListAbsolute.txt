@@ -26,7 +26,6 @@ D:\petrobras\pgp1\server\Pgp1.Server\obj\Debug\net9.0\rjsmrazor.dswa.cache.json
 D:\petrobras\pgp1\server\Pgp1.Server\obj\Debug\net9.0\rjsmcshtml.dswa.cache.json
 D:\petrobras\pgp1\server\Pgp1.Server\obj\Debug\net9.0\scopedcss\bundle\Pgp1.Server.styles.css
 D:\petrobras\pgp1\server\Pgp1.Server\obj\Debug\net9.0\compressed\19gnhwly2r-k0pfk08p57.gz
-D:\petrobras\pgp1\server\Pgp1.Server\obj\Debug\net9.0\compressed\eoxe5cylpe-d6ay7yve73.gz
 D:\petrobras\pgp1\server\Pgp1.Server\obj\Debug\net9.0\compressed\ke9sr2qloj-d6ay7yve73.gz
 D:\petrobras\pgp1\server\Pgp1.Server\obj\Debug\net9.0\compressed\bcasw91xk2-awqpobfnb0.gz
 D:\petrobras\pgp1\server\Pgp1.Server\obj\Debug\net9.0\staticwebassets.build.json
@@ -39,3 +38,4 @@ D:\petrobras\pgp1\server\Pgp1.Server\obj\Debug\net9.0\refint\Pgp1.Server.dll
 D:\petrobras\pgp1\server\Pgp1.Server\obj\Debug\net9.0\Pgp1.Server.pdb
 D:\petrobras\pgp1\server\Pgp1.Server\obj\Debug\net9.0\Pgp1.Server.genruntimeconfig.cache
 D:\petrobras\pgp1\server\Pgp1.Server\obj\Debug\net9.0\ref\Pgp1.Server.dll
+D:\petrobras\pgp1\server\Pgp1.Server\obj\Debug\net9.0\compressed\eoxe5cylpe-tw40cww4x0.gz

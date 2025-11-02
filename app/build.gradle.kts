@@ -32,7 +32,7 @@ android {
 
 dependencies {
     // Compose (BOM para manter versões alinhadas)
-    implementation(platform("androidx.compose:compose-bom:2024.10.01"))
+    implementation(platform("androidx.compose:compose-bom:2024.06.00"))
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-tooling-preview")
     debugImplementation("androidx.compose.ui:ui-tooling")
@@ -55,9 +55,9 @@ dependencies {
 
     // Ktor Client (HTTP)
     implementation("io.ktor:ktor-client-android:2.3.12")
+    implementation("io.ktor:ktor-client-okhttp:2.3.12")
     implementation("io.ktor:ktor-client-content-negotiation:2.3.12")
     implementation("io.ktor:ktor-serialization-kotlinx-json:2.3.12")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
 
     // Kotlinx utilitários
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
@@ -67,4 +67,3 @@ dependencies {
     implementation("com.journeyapps:zxing-android-embedded:4.3.0")
     implementation("com.google.zxing:core:3.5.3")
 }
-
