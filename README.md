@@ -188,21 +188,38 @@ Retorna IDs/nicks presentes (versão simples do MVP).
 
 > Esta seção é o **log vivo** do desenvolvimento (atualize continuamente).
 
-### Sprint atual
-- **Objetivo:** MVP funcional com check-in manual/QR e dashboard com resumo.
-- **Início:** 2025-10-xx • **Conclusão prevista:** 2025-11-xx
-- **Entregas:**  
-  - Servidor com `/events`, `/events/{id}/checkins`, `/events/{id}/summary`  
-  - Dashboard em `wwwroot/dashboard.html`  
-  - App Android com listagem do CSV e envio de check-in
-- **Problemas & Soluções:**  
-  - Cleartext HTTP → habilitado via `networkSecurityConfig`  
-  - Emulador não atinge host → usar `10.0.2.2:<porta>`  
-  - Compose/Serialization *warnings* → tratados com `@OptIn(...)` quando necessário
-- **Pendências:**  
-  - Validação por cadastro/baleeira no servidor  
-  - Autocomplete/busca assistida no app  
-  - Fila local para modo offline e sincronização
+## 🏃 Sprint Atual — MVP de Check-in & Dashboard
+
+**Objetivo:** MVP funcional com check-in manual/QR e dashboard com resumo.  
+**Janela:** Início: 02-11-2025 • Conclusão prevista: 04-11-2025
+
+### ✅ Entregas concluídas
+- **Servidor (.NET 8 / ASP.NET Core)**
+  - `POST /events` — cria evento
+  - `POST /events/{id}/checkins` — registra presença
+  - `GET /events/{id}/summary` — resumo para o painel
+  - **Dashboard** em `wwwroot/dashboard.html` com atualização periódica
+
+- **Aplicativo Android (Kotlin + Compose)**
+  - Consumo do CSV `tripulantes_pgp1.csv` hospedado no servidor
+  - **Listagem** de tripulantes com ordenação alfabética
+  - **Busca** (nome / nome de guerra / matrícula) com filtro dinâmico
+  - **Check-in** individual: botão “Confirmar” → envia para `/checkins`
+  - **Feedback visual** após confirmação (estado “✔ Presente”)
+  - **Conectividade emulador ↔ servidor** com `http://10.0.2.2:<porta>`
+
+### 🧩 Problemas encontrados & soluções
+- **HTTP em claro bloqueado no Android** → resolvido com `networkSecurityConfig` (permitindo `http://10.0.2.2`)
+- **Emulador não alcança host local** → usar `10.0.2.2:<porta>` (em vez de `localhost`)
+- **Warnings de Compose/Serialization** → tratados via `@OptIn(ExperimentalMaterial3Api::class)` e configs do `ktor + kotlinx.serialization`
+- **Estado de confirmações** → corrigido para `mutableStateListOf<String>()` (evitando lista de listas)
+
+### ⏳ Pendências desta sprint
+- **Fila local (modo off-line) + sincronização**  
+  - Armazenar tentativas de check-in quando a requisição falhar (sem rede ou erro 5xx)
+  - Persistir localmente (ex.: `Room`/`DataStore`) e **reprocessar** ao restabelecer a conexão
+  - Prevenir duplicidade (chave: `eventId + matrícula + timestamp/nonce`)
+  - Telemetria básica (contagem de reenvios, última sincronização)
 
 ### Próximas sprints (backlog)
 1. **Validação por cadastro**: check-in apenas para nomes do CSV; opção de forçar baleeira.  
