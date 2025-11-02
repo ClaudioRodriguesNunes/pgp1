@@ -221,6 +221,12 @@ Retorna IDs/nicks presentes (versão simples do MVP).
   - Prevenir duplicidade (chave: `eventId + matrícula + timestamp/nonce`)
   - Telemetria básica (contagem de reenvios, última sincronização)
 
+### 📌 Notas de implementação (para a próxima iteração do mesmo sprint)
+- Modelo local de fila: PendingCheckin(eventId, nameOrNick, baleeira, present, createdAt, status)
+- Persistência: Room (tabela pending_checkins) ou DataStore (prototipagem rápida)
+- Política de reenvio: backoff exponencial leve + gatilho manual opcional (“Sincronizar agora”)
+- UI mínima: indicar “X check-ins aguardando sincronização” no topo da lista
+
 ### Próximas sprints (backlog)
 1. **Validação por cadastro**: check-in apenas para nomes do CSV; opção de forçar baleeira.  
 2. **Busca assistida (autocomplete)** no app e/ou endpoint de sugestão.  
