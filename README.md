@@ -1,246 +1,188 @@
-# PGP-1 — Contagem de POB em Emergência (MVP)
+# PGP‑1 — Contagem de POB em Emergência
 
-Este repositório reúne o **servidor .NET** do centro de controle (painel/TV e API) e o **aplicativo Android** (posto do líder de baleeira) para confirmação de presença durante uma evacuação na plataforma PGP‑1.
+Sistema de apoio à evacuação da plataforma **PGP‑1**:
+- **Servidor .NET** para criar eventos, importar lista de tripulantes e expor o **painel (dashboard)**.
+- **Aplicativo Android** (posto do Líder de Baleeira) para **confirmar presença** de tripulantes.
 
-> **Status:** MVP funcional (on-line). Já permite:
-> 1) Criar evento de evacuação  
-> 2) Importar lista de tripulantes (CSV: `nome,nome_guerra,baleeira,empresa`)  
-> 3) Marcar presença por **digitação** ou **QR code** no app Android  
-> 4) Acompanhar em tempo real no **Dashboard** (TV do centro de controle)
-
-Próximas sprints previstas: validação por cadastro/baleeira, sugestões de nomes (autocomplete), operação off-line com fila/sincronização, cadastro na recepção, integração biométrica Bluetooth.
+> **Objetivo**: registrar e acompanhar, em tempo real, o **POB** (Personnel On Board) durante **simulados** e **emergências**, reduzindo erros operacionais e o tempo de conferência.
 
 ---
 
-## Arquitetura (alto nível)
+## 👤 Autores
 
-- **server/Pgp1.Server** — ASP.NET Core (.NET 8)
-  - Endpoints REST: criar evento, importar CSV, registrar presença, resumo
-  - Dashboard web em `http://<host>:<porta>/dashboard` (atualização em tempo real)
-- **app/** — Android (Kotlin, Jetpack Compose)
-  - Tela do **Líder de Baleeira**: seleciona baleeira e evento, confirma presença por digitação ou QR
-
-Comunicação: HTTP (Ktor no Android) → API do servidor.
+- **Claudio Rodrigues Nunes** — [GitHub](https://github.com/ClaudioRodriguesNunes) • [LinkedIn](https://www.linkedin.com/in/-claudionunes-/)
+- Contribuidores: abra um PR adicionando seu nome aqui.
 
 ---
 
-## Requisitos
+## 🚦 Status do Projeto
 
-- **Servidor (Windows/Linux/macOS)**
-  - [.NET 8 SDK](https://dotnet.microsoft.com/download)
-- **Android**
-  - Android Studio (AGP 8.5+), Kotlin 2.0.x, Compose
-  - Emulador Android **ou** aparelho físico na mesma rede do servidor
+- **MVP** em funcionamento local: app Android → **POST /events/{id}/checkins** → painel reflete em tempo real.
+- Lista de tripulantes carregada via **CSV** em `wwwroot/data/tripulantes_pgp1.csv`.
+
+> Próximas evoluções: validação por cadastro/baleeira, busca assistida (autocomplete), modo off‑line, cadastro na recepção, integração biométrica Bluetooth.
 
 ---
 
-## Estrutura do repositório
+## 🧱 Arquitetura (alto nível)
 
 ```
 .
 ├─ server/
-│  └─ Pgp1.Server/
-│     ├─ Program.cs
-│     ├─ Properties/launchSettings.json
+│  └─ Pgp1.Server/              # ASP.NET Core (.NET 8)
+│     ├─ Program.cs             # Endpoints mínimos + CORS + arquivos estáticos
 │     └─ wwwroot/
-│        └─ dashboard.html
-└─ app/
+│        ├─ dashboard.html      # Painel (TV do centro de controle)
+│        └─ data/
+│           └─ tripulantes_pgp1.csv
+└─ app/                         # Android (Kotlin + Jetpack Compose)
    └─ (projeto Android)
       ├─ app/build.gradle.kts
       ├─ src/main/AndroidManifest.xml
       └─ src/main/java/.../MainActivity.kt
 ```
 
+- Comunicação: **HTTP** (Ktor no Android) → **API** do servidor .NET
+- Atualização do painel: leitura periódica do resumo (`/events/{id}/summary`) e/ou arquivos gerados pelo servidor em `wwwroot/data`.
+
 ---
 
-## Executando o Servidor (.NET)
+## 🔧 Como executar
 
-No terminal, a partir de `server/Pgp1.Server/`:
+### 1) Servidor (.NET)
 
-```bash
+**Pré‑requisito:** [.NET 8 SDK](https://dotnet.microsoft.com/download)
+
+```powershell
+cd server/Pgp1.Server
 dotnet run
+# Saída esperada: Now listening on: http://localhost:5275
 ```
 
-Você verá algo como:
+> Dica: para expor na rede local (ex.: testar no celular) use:
+>
+> ```powershell
+> dotnet run --urls "http://0.0.0.0:5000"
+> ```
+> e acesse via `http://SEU_IP_LOCAL:5000` (libere a porta no firewall).
 
+**CSV de tripulantes**
+Coloque o arquivo em `server/Pgp1.Server/wwwroot/data/tripulantes_pgp1.csv` com o **cabeçalho** abaixo:
+
+```csv
+nome,nome_guerra,matricula,baleeira,empresa,camarote,leito
+Maria da Silva,Mari,120001,2,Petrobras,302,A
+João Souza,JJ,120002,2,Terceirizada X,305,B
 ```
-Now listening on: http://localhost:5275
+
+**Criar evento & testar check‑in (PowerShell):**
+
+```powershell
+# Criar evento
+Invoke-RestMethod -Method POST http://localhost:5275/events
+
+# Registrar check-in (exemplo para o evento 1)
+Invoke-RestMethod -Method POST `
+  -Uri http://localhost:5275/events/1/checkins `
+  -ContentType "application/json" `
+  -Body '{"EventId":1,"NameOrNick":"Mari","Baleeira":"2","Mode":"manual","Present":true}'
 ```
 
-Ajuste de porta (opcional):
+**Painel (TV):**
+```
+http://localhost:5275/dashboard.html
+```
 
-- Só nesta execução:
-  ```bash
-  dotnet run --urls "http://0.0.0.0:5000"
+---
+
+### 2) Aplicativo Android
+
+**Pré‑requisitos:** Android Studio (AGP 8.5+), Kotlin 2.0.x, Compose.
+
+- `AndroidManifest.xml` precisa das permissões:
+  ```xml
+  <uses-permission android:name="android.permission.INTERNET"/>
+  <uses-permission android:name="android.permission.CAMERA"/>
   ```
-- Persistente via `launchSettings.json` (`Properties/launchSettings.json`):
-  ```json
-  "applicationUrl": "http://0.0.0.0:5000"
-  ```
+- **Base URL** no emulador: `http://10.0.2.2:5275` (ou a porta que você usou no servidor).
+  Em aparelho físico: `http://SEU_IP_LOCAL:5275`.
 
-> Se for acessar a partir de outro dispositivo (ex.: celular físico), use `0.0.0.0` ou o IP da máquina e libere a porta no firewall do sistema.
-
-### Endereços úteis
-
-- Swagger (testes manuais): `http://<host>:<porta>/swagger`
-- Dashboard (TV): `http://<host>:<porta>/dashboard`
+**Build & run** no Android Studio (emulador recomendado para os testes iniciais).
 
 ---
 
-## Fluxo de Operação (MVP)
+## 🧪 Fluxo de uso (MVP)
 
-1. **Criar evento**  
-   Via Swagger ou `curl`:
-   ```bash
-   curl -sX POST http://<host>:<porta>/events
-   ```
-   A resposta inclui o `id` do evento (ex.: `1`).
-
-2. **Importar CSV (lista de tripulantes)**  
-   Formato obrigatório (cabeçalho na primeira linha):
-   ```csv
-   nome,nome_guerra,baleeira,empresa
-   Maria da Silva,Mari,B1,Petrobras
-   João Souza,JJ,B1,Terceirizada X
-   ```
-   Envie:
-   ```bash
-   curl -X POST -H "Content-Type: text/csv"      --data-binary "@caminho/arquivo.csv"      http://<host>:<porta>/events/1/import
-   ```
-
-3. **Acompanhar Painel**  
-   Abra `http://<host>:<porta>/dashboard` em uma TV/monitor do centro de controle.
-
-4. **Confirmar presenças no App Android**  
-   - Preencha **Baleeira** (ex.: `B1`) e **Evento** (ex.: `1`).
-   - Confirme por **digitação** (campo “Nome ou Nome de Guerra”) ou por **Ler QR**.
-
-5. **Resumo do evento**  
-   ```bash
-   curl http://<host>:<porta>/events/1/summary
-   ```
+1. Inicie o servidor (`dotnet run`).
+2. Garanta o CSV em `wwwroot/data/tripulantes_pgp1.csv`.
+3. Crie o evento (`POST /events`).
+4. Abra o painel: `http://localhost:5275/dashboard.html`.
+5. No app Android, selecione um tripulante e **Confirmar Presença**.
+6. O painel deve refletir o check‑in em até alguns segundos.
 
 ---
 
-## Aplicativo Android
+## 🧰 Stack / Dependências principais
 
-### BaseURL
+- **Servidor**: .NET 8, ASP.NET Core (arquivos estáticos + Minimal APIs)
+- **App Android**: Kotlin 2.0.x, Jetpack Compose, Ktor (client‑okhttp), kotlinx‑serialization‑json, kotlinx‑coroutines, ZXing
 
-No emulador Android, use o host especial `10.0.2.2` apontando para a porta do servidor:
-
-```kotlin
-val baseUrl = "http://10.0.2.2:5275" // ou 5000, se configurado
-```
-
-No **aparelho físico**, use o IP da máquina do servidor:
-
-```kotlin
-val baseUrl = "http://SEU_IP_LOCAL:5275"
-```
-
-> Garanta que a porta está aberta no firewall e que o servidor escuta em `0.0.0.0`.
-
-### Permissões
-
-No `AndroidManifest.xml`:
-
-```xml
-<uses-permission android:name="android.permission.INTERNET"/>
-<uses-permission android:name="android.permission.CAMERA"/>
-```
-
-### Build (Android Studio)
-
-- Requisitos do projeto:
-  - Kotlin 2.0.x com plugin `org.jetbrains.kotlin.plugin.compose`
-  - Compose via BOM
-  - Dependências principais do app:  
-    `Ktor (client-okhttp, content-negotiation, kotlinx-json)`,  
-    `kotlinx-serialization-json 1.7.x`,  
-    `kotlinx-coroutines-android 1.8.x`,  
-    `ZXing (journeyapps + core)`.
+> Observação de build: com Kotlin 2.x o plugin `org.jetbrains.kotlin.plugin.compose` dispensa `kotlinCompilerExtensionVersion`; use BOM do Compose.
+> Avisos de `@OptIn(ExperimentalMaterial3Api::class)` podem aparecer — são esperados.
 
 ---
 
-## Endpoints principais (servidor)
+## 🩺 Solução de problemas (curto)
 
-- `POST /events`  
-  Cria um novo evento de evacuação. Retorna `{ "id": <int> }`.
-
-- `POST /events/{eventId}/import` (Content-Type: `text/csv`)  
-  Importa a lista de tripulantes. CSV com cabeçalho:  
-  `nome,nome_guerra,baleeira,empresa`
-
-- `POST /events/{eventId}/checkins` (JSON)  
-  Marca presença. Corpo:
-  ```json
-  {
-    "eventId": 1,
-    "nameOrNick": "Mari",
-    "baleeira": "B1",
-    "mode": "qr|matricula",
-    "present": true
-  }
-  ```
-
-- `GET /events/{eventId}/summary`  
-  Retorna o resumo de presentes/ausentes por baleeira.
-
-- `GET /dashboard`  
-  Painel em tempo real para a TV do centro de controle.
-
-> Observação: no MVP, a validação de nomes ainda é permissiva (qualquer texto). A próxima sprint restringe para **apenas** nomes presentes no cadastro importado e, opcionalmente, na **mesma baleeira**.
+- **Emulador não conecta ao servidor**
+  Use `http://10.0.2.2:<porta>` (em vez de `localhost`), confirme `dotnet run` e liberação de porta.
+- **Erro “Cleartext HTTP not permitted”**
+  Defina `networkSecurityConfig` permitindo HTTP local ou use HTTPS (para desenvolvimento, o HTTP local é suficiente).
+- **Tela preta no app**
+  Verifique o **Logcat** e se a tela realmente está sendo **composada** (`setContent { ... }`). Teste com um `Text("Hello")` para isolar.
+- **PowerShell não envia JSON**
+  Prefira `Invoke‑RestMethod` com `-ContentType` e `-Body` (exemplos acima).
 
 ---
 
-## Problemas comuns (e soluções)
+## 🗺️ Roadmap resumido
 
-- **App no emulador não conecta**  
-  - Use `http://10.0.2.2:<porta>` como `baseUrl`.  
-  - Confirme que o servidor está “ouvindo” (`dotnet run` log).  
-  - Ajuste porta (5275/5000) e firewall local.
-
-- **QR no emulador não funciona**  
-  Emuladores às vezes falham com câmera/QR. Use a confirmação por digitação para testes.
-
-- **Dashboard não atualiza**  
-  - Verifique `GET /events/{id}/summary` para confirmar que o check-in foi gravado.  
-  - Atualize o navegador ou limpe cache.
-
-- **Kotlin/Gradle dando erro de Compose/Serialization**  
-  - Garanta o plugin `org.jetbrains.kotlin.plugin.compose` (Kotlin 2.0.x).  
-  - Use `kotlinx-serialization-json 1.7.x`.  
-  - Evite `composeOptions { kotlinCompilerExtensionVersion = ... }` no Kotlin 2.x.  
-  - `Invalidate Caches / Restart` no Android Studio resolve teimosias.
+- ✅ Integração app ⇄ servidor (check‑in em tempo real)
+- ⏭️ Validação do nome/baleeira contra o CSV importado
+- ⏭️ Busca assistida (autocomplete)
+- ⏭️ Modo off‑line (fila + sincronização)
+- ⏭️ Cadastro na recepção (tela no servidor)
+- ⏭️ Integração biométrica Bluetooth
 
 ---
 
-## Roadmap (próximas sprints)
+## 📒 Registro de Sprints
 
-1. **Validação por cadastro**  
-   Check-in só se `nameOrNick` existir no CSV importado (opcional: forçar mesma `baleeira`).
+> Atualize apenas esta seção a cada entrega, mantendo o histórico técnico do projeto.
 
-2. **Busca assistida (autocomplete)**  
-   `GET /events/{id}/baleeiras/{code}/membros?query=xxx` para sugerir nomes a partir de 3 letras.
+### Sprint 0 — MVP integrado (out/nov‑2025)
+- **Objetivo:** provar fluxo ponta‑a‑ponta (app → servidor → painel).
+- **Entregas:** check‑in via app; CSV em `wwwroot/data`; painel lendo resumo; comandos de teste via PowerShell.
+- **Dificuldades:** comunicação em emulador (resolver com `10.0.2.2`), avisos de API experimental no Compose.
+- **Decisões:** manter tráfego HTTP local em desenvolvimento; `@OptIn(ExperimentalMaterial3Api)` quando necessário.
 
-3. **Modo off-line (app)**  
-   Fila local de check-ins + sincronização quando a rede voltar.
-
-4. **Cadastro na recepção (PC/servidor)**  
-   Tela/endpoint para “novos a bordo” no ato do embarque.
-
-5. **Integração biométrica Bluetooth**  
-   Leitor digital conectado a um device (celular/PDA) do líder de baleeira.
-
----
-
-## Licença
-
-Defina a licença do projeto (ex.: MIT, Apache‑2.0) de acordo com as políticas internas.
+> **Modelo para as próximas sprints**
+>
+> **Sprint N — título (aaaa‑mm‑dd a aaaa‑mm‑dd)**
+> • Objetivo: …
+> • Entregas: …
+> • Dificuldades/Erros: …
+> • Decisões/Trade‑offs: …
 
 ---
 
-## Créditos
+## 📝 Licença
 
-Projeto PGP‑1 — Contagem de POB em Emergência.  
-Servidor: .NET 8 + ASP.NET Core • App: Android (Kotlin/Compose, Ktor, ZXing).
+Definir (MIT/Apache‑2.0, etc.) conforme as políticas internas.
+
+---
+
+## 🙌 Créditos
+
+Projeto **PGP‑1 — Contagem de POB em Emergência**.
+Servidor: .NET 8 + ASP.NET Core • App: Android (Kotlin/Compose, Ktor, ZXing)

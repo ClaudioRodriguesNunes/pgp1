@@ -1,145 +1,89 @@
-using System.Globalization;
-using CsvHelper;
-using Microsoft.AspNetCore.SignalR;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Hosting;
+using Microsoft.OpenApi.Models;
+using System.Text.Json;
+using System.Collections.Concurrent;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// SignalR + Swagger + CORS dev
-builder.Services.AddSignalR();
+// === Serviços ===
+builder.Services.AddCors(o => o.AddDefaultPolicy(p => p.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod()));
+builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
-builder.Services.AddCors(o => o.AddDefaultPolicy(p =>
-    p.AllowAnyHeader().AllowAnyMethod().AllowAnyOrigin()));
-
-builder.Services.AddSingleton<Repo>();
+builder.Services.AddSwaggerGen(c =>
+{
+    c.SwaggerDoc("v1", new OpenApiInfo { Title = "PGP-1 API", Version = "v1" });
+});
 
 var app = builder.Build();
 app.UseCors();
-app.UseSwagger();
-app.UseSwaggerUI();
-
-// arquivos est�ticos p/ servir dashboard.html
-app.UseDefaultFiles();
 app.UseStaticFiles();
 
-// HUB tempo real
-app.MapHub<EventHub>("/hub");
-
-// API m�nima
-app.MapPost("/events", (Repo repo) =>
+// === Habilita Swagger em ambiente Development ===
+if (app.Environment.IsDevelopment())
 {
-    var ev = repo.CreateEvent();
-    return Results.Ok(new { ev.Id });
-}).WithTags("Events");
-
-app.MapPost("/events/{id:int}/import", async (int id, HttpRequest req, Repo repo) =>
-{
-    using var reader = new StreamReader(req.Body);
-    using var csv = new CsvReader(reader, CultureInfo.InvariantCulture);
-    var rows = csv.GetRecords<PessoaCsv>().ToList();
-
-    var ok = repo.ImportCsv(id, rows, out var error);
-    return ok ? Results.Ok(new { imported = rows.Count }) : Results.BadRequest(new { error });
-}).WithTags("Events");
-
-app.MapGet("/events/{id:int}/summary", (int id, Repo repo) =>
-{
-    var sum = repo.Summary(id);
-    return sum is null ? Results.NotFound() : Results.Ok(sum);
-}).WithTags("Dashboard");
-
-app.MapPost("/events/{id:int}/checkins", async (int id, CheckinDto dto, Repo repo, IHubContext<EventHub> hub) =>
-{
-    var ok = repo.MarkPresent(id, dto);
-    if (!ok) return Results.NotFound(new { message = "Pessoa n�o encontrada na baleeira informada." });
-
-    var summary = repo.Summary(id);
-    await hub.Clients.All.SendAsync("SummaryUpdated", summary);
-    return Results.Ok(new { status = "ok" });
-}).WithTags("Checkins");
-
-// rota da TV
-app.MapGet("/dashboard", () => Results.Redirect("/dashboard.html"));
-
-app.Run();
-
-record PessoaCsv(string nome, string nome_guerra, string baleeira, string empresa);
-record Pessoa(int Id, string Nome, string NomeGuerra, string Baleeira, string Empresa, bool Presente);
-record Event(int Id, List<Pessoa> Pessoas);
-record CheckinDto(int EventId, string NameOrNick, string Baleeira, string Mode, bool Present);
-
-class Repo
-{
-    private readonly Dictionary<int, Event> _events = new();
-    private int _nextEventId = 1;
-    private int _nextPersonId = 1;
-
-    public Event CreateEvent()
-    {
-        var ev = new Event(_nextEventId++, new List<Pessoa>());
-        _events[ev.Id] = ev;
-        return ev;
-    }
-
-    public bool ImportCsv(int eventId, IEnumerable<PessoaCsv> rows, out string error)
-    {
-        error = "";
-        if (!_events.TryGetValue(eventId, out var ev)) { error = "Evento n�o existe."; return false; }
-
-        foreach (var r in rows)
-        {
-            if (string.IsNullOrWhiteSpace(r.nome) || string.IsNullOrWhiteSpace(r.baleeira))
-                continue;
-            ev.Pessoas.Add(new Pessoa(
-                Id: _nextPersonId++,
-                Nome: r.nome.Trim(),
-                NomeGuerra: (r.nome_guerra ?? "").Trim(),
-                Baleeira: r.baleeira.Trim().ToUpperInvariant(),
-                Empresa: (r.empresa ?? "").Trim(),
-                Presente: false
-            ));
-        }
-        return true;
-    }
-
-    public object? Summary(int eventId)
-    {
-        if (!_events.TryGetValue(eventId, out var ev)) return null;
-        var porBaleeira = ev.Pessoas.GroupBy(p => p.Baleeira)
-            .Select(g => new {
-                Baleeira = g.Key,
-                Total = g.Count(),
-                Presentes = g.Count(p => p.Presente),
-                Faltantes = g.Count(p => !p.Presente)
-            })
-            .OrderBy(x => x.Baleeira)
-            .ToList();
-
-        return new
-        {
-            EventId = eventId,
-            POB = ev.Pessoas.Count,
-            Presentes = ev.Pessoas.Count(p => p.Presente),
-            Faltantes = ev.Pessoas.Count(p => !p.Presente),
-            PorBaleeira = porBaleeira
-        };
-    }
-
-    public bool MarkPresent(int eventId, CheckinDto dto)
-    {
-        if (!_events.TryGetValue(eventId, out var ev)) return false;
-        var alvo = ev.Pessoas.FirstOrDefault(p =>
-            p.Baleeira.Equals(dto.Baleeira, StringComparison.OrdinalIgnoreCase) &&
-            (string.Equals(p.Nome, dto.NameOrNick, StringComparison.OrdinalIgnoreCase) ||
-             string.Equals(p.NomeGuerra, dto.NameOrNick, StringComparison.OrdinalIgnoreCase)));
-
-        if (alvo is null) return false;
-
-        var atualizado = alvo with { Presente = dto.Present };
-        var idx = ev.Pessoas.FindIndex(p => p.Id == alvo.Id);
-        ev.Pessoas[idx] = atualizado;
-        return true;
-    }
+    app.UseSwagger();
+    app.UseSwaggerUI();
 }
 
-class EventHub : Hub { }
+// === Estado em memória (MVP) ===
+var eventos = new ConcurrentDictionary<int, ConcurrentDictionary<string, bool>>();
+
+// === Criar evento ===
+app.MapPost("/events", () =>
+{
+    int id = eventos.Count + 1;
+    eventos[id] = new ConcurrentDictionary<string, bool>();
+    Console.WriteLine($"🟢 Evento criado: {id}");
+    return Results.Ok(new { id });
+});
+
+// === Importar CSV (simulado) ===
+app.MapPost("/events/{eventId}/import", async (int eventId, HttpContext context) =>
+{
+    using var reader = new StreamReader(context.Request.Body);
+    string csv = await reader.ReadToEndAsync();
+
+    eventos.TryAdd(eventId, new ConcurrentDictionary<string, bool>());
+
+    Console.WriteLine($"📄 CSV recebido para evento {eventId}: {csv.Split('\n').Length - 1} linhas");
+    return Results.Ok(new { sucesso = true, linhas = csv.Split('\n').Length - 1 });
+});
+
+// === Registrar presença ===
+app.MapPost("/events/{eventId}/checkins", (int eventId, CheckinDto dto) =>
+{
+    try
+    {
+        Console.WriteLine($"✅ Check-in recebido: {dto.NameOrNick} (Evento {eventId})");
+
+        var lista = eventos.GetOrAdd(eventId, new ConcurrentDictionary<string, bool>());
+        lista[dto.NameOrNick] = dto.Present;
+
+        var path = Path.Combine(app.Environment.WebRootPath ?? ".", "data", $"event_{eventId}_summary.json");
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        File.WriteAllText(path, JsonSerializer.Serialize(lista.Keys));
+
+        return Results.Ok(new { sucesso = true });
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"❌ Erro no check-in: {ex.Message}");
+        return Results.BadRequest(new { sucesso = false, erro = ex.Message });
+    }
+});
+
+// === Resumo para o Dashboard ===
+app.MapGet("/events/{eventId}/summary", (int eventId) =>
+{
+    if (eventos.TryGetValue(eventId, out var lista))
+        return Results.Ok(new { eventId, presentes = lista.Keys });
+    return Results.NotFound(new { erro = "Evento não encontrado" });
+});
+
+app.Urls.Add("http://0.0.0.0:5275");
+app.Run();
+
+// === Declaração de tipos (precisa ficar no final) ===
+record CheckinDto(int EventId, string NameOrNick, string Baleeira, string Mode, bool Present);

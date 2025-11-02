@@ -1,0 +1,45 @@
+using Microsoft.AspNetCore.Builder;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+
+var builder = WebApplication.CreateBuilder(args);
+
+// Habilita os controladores (nossos endpoints)
+builder.Services.AddControllers();
+
+builder.Services.AddCors(options =>
+{
+    options.AddDefaultPolicy(policy =>
+    {
+        policy.AllowAnyOrigin()
+              .AllowAnyHeader()
+              .AllowAnyMethod();
+    });
+});
+
+// Cria o app
+var app = builder.Build();
+
+// 🔹 Permite que o app Android poste dados
+
+app.UseCors();
+
+
+// Habilita o acesso a arquivos estáticos (wwwroot)
+app.UseStaticFiles();
+
+app.MapPost("/events/{eventId}/checkins", async (int eventId, HttpContext context) =>
+{
+    var body = await new StreamReader(context.Request.Body).ReadToEndAsync();
+    Console.WriteLine($"✅ Check-in recebido para o evento {eventId}: {body}");
+    return Results.Ok(new { sucesso = true });
+});
+
+// Mapeia os endpoints dos controllers
+app.MapControllers();
+
+// Porta padrão (caso não venha de launchSettings.json)
+// app.Urls.Add("http://localhost:5275");
+app.Urls.Add("http://0.0.0.0:5275");
+
+app.Run();
